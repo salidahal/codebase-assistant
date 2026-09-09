@@ -5,3 +5,5 @@ __pycache__/
 chroma_db/
 node_modules/
 .DS_Store
+target_repos/
+chunks_summary.txt
