@@ -1,6 +1,7 @@
 import chromadb
 from openai import OpenAI
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -114,3 +115,91 @@ def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
     )
 
     return response.choices[0].message.content
+
+import json  # add this to your existing imports at the top
+
+
+def read_file(file_path: str) -> str:
+    """Read a file's full contents, restricted to the target repo for safety."""
+    safe_root = os.path.abspath("target_repos")
+    requested_path = os.path.abspath(file_path)
+
+    if not requested_path.startswith(safe_root):
+        return "Error: access denied - file is outside the allowed directory."
+
+    if not os.path.exists(requested_path):
+        return f"Error: file not found: {file_path}"
+
+    with open(requested_path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+# Tool schema - describes read_file to the LLM, doesn't run any code itself
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Read the full contents of a specific file in the codebase, when retrieved code snippets aren't enough context.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file, e.g. target_repos/requests/src/requests/sessions.py",
+                    }
+                },
+                "required": ["file_path"],
+            },
+        },
+    }
+]
+
+
+def generate_answer_with_tools(query: str, retrieved_chunks: list[dict]) -> str:
+    """Same as generate_answer, but lets the model call read_file if it needs to."""
+
+    context_blocks = []
+    for chunk in retrieved_chunks:
+        label = f"{chunk['file']} - {chunk['name']}"
+        if chunk.get("class_name"):
+            label += f" (in class {chunk['class_name']})"
+        context_blocks.append(f"### {label}\n```python\n{chunk['source']}\n```")
+    context_text = "\n\n".join(context_blocks)
+
+    system_prompt = (
+        "You are an assistant that answers questions about a specific codebase. "
+        "Use the provided code snippets first. If you need to see a full file "
+        "for more context, use the read_file tool. Cite which file/function "
+        "your answer comes from."
+    )
+    user_prompt = f"Relevant code:\n\n{context_text}\n\nQuestion: {query}"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    for _ in range(3):
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools,
+        )
+        message = response.choices[0].message
+
+        if message.tool_calls:
+            messages.append(message)
+            for tool_call in message.tool_calls:
+                args = json.loads(tool_call.function.arguments)
+                print(f"Tool called: read_file({args['file_path']})")  # so you can see it happen
+                result = read_file(args["file_path"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                })
+        else:
+            return message.content
+
+    return "Reached tool-call limit without a final answer."
