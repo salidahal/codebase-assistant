@@ -41,6 +41,7 @@ def embed_and_store(chunks: list[dict], collection_name="requests_repo", persist
             "class_name": c["class_name"] or "",
             "start_line": c["start_line"],
             "end_line": c["end_line"],
+            "is_test": c["is_test"],
         } for c in batch]
 
         vectors = get_embeddings(texts)   # <- this is the actual API call
@@ -57,29 +58,46 @@ def embed_and_store(chunks: list[dict], collection_name="requests_repo", persist
 
 
 
+def _rows_from_query(results):
+    return list(zip(
+        results["ids"][0],
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0],
+    ))
+
+
 def retrieve(query: str, top_k: int = 5, collection_name="requests_repo", persist_directory="chroma_db"):
-    """Given a plain-English question, return the top_k most relevant chunks."""
+    """Given a plain-English question, return the top_k most relevant chunks.
+    Prefers implementation chunks; test chunks only fill remaining slots."""
     chroma_client = chromadb.PersistentClient(path=persist_directory)
     collection = chroma_client.get_or_create_collection(name=collection_name)
 
     # Embed the question the same way we embedded the chunks - same model, same function
     query_vector = get_embeddings([query])[0]
 
-    results = collection.query(
+    impl_results = collection.query(
         query_embeddings=[query_vector],
         n_results=top_k,
+        where={"is_test": False},
     )
+    rows = _rows_from_query(impl_results)
 
-    # Chroma returns parallel lists - zip them into one readable list of dicts
-    retrieved = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-    ):
-        retrieved.append({**meta, "source": doc, "distance": dist})
+    if len(rows) < top_k:
+        test_results = collection.query(
+            query_embeddings=[query_vector],
+            n_results=top_k,
+            where={"is_test": True},
+        )
+        seen_ids = {row_id for row_id, *_ in rows}
+        for row in _rows_from_query(test_results):
+            if row[0] in seen_ids:
+                continue
+            rows.append(row)
+            if len(rows) >= top_k:
+                break
 
-    return retrieved
+    return [{**meta, "source": doc, "distance": dist} for _, doc, meta, dist in rows]
 
 
 def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:

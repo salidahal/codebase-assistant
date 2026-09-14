@@ -2,7 +2,12 @@ import ast
 from pathlib import Path
 
 
-def _walk_and_collect(node, filepath, source, class_name=None):
+def _is_test_file(filepath: str) -> bool:
+    path = Path(filepath)
+    return "tests" in path.parts or path.stem.startswith("test_") or path.stem.endswith("_test")
+
+
+def _walk_and_collect(node, filepath, source, is_test, class_name=None):
     """Recursively collect function chunks, tracking which class (if any) each belongs to."""
     chunks = []
 
@@ -10,7 +15,7 @@ def _walk_and_collect(node, filepath, source, class_name=None):
         if isinstance(child, ast.ClassDef):
             # Don't save the class itself as a chunk — recurse into it,
             # remembering its name so methods inside get tagged with it.
-            chunks.extend(_walk_and_collect(child, filepath, source, class_name=child.name))
+            chunks.extend(_walk_and_collect(child, filepath, source, is_test, class_name=child.name))
 
         elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
             chunks.append({
@@ -21,9 +26,10 @@ def _walk_and_collect(node, filepath, source, class_name=None):
                 "start_line": child.lineno,
                 "end_line": child.end_lineno,
                 "source": ast.get_source_segment(source, child),
+                "is_test": is_test,
             })
             # Still recurse in case there's a nested function inside this one
-            chunks.extend(_walk_and_collect(child, filepath, source, class_name=class_name))
+            chunks.extend(_walk_and_collect(child, filepath, source, is_test, class_name=class_name))
 
     return chunks
 
@@ -33,7 +39,7 @@ def chunk_file(filepath: str) -> list[dict]:
         source = f.read()
 
     tree = ast.parse(source, filename=filepath)
-    return _walk_and_collect(tree, filepath, source)
+    return _walk_and_collect(tree, filepath, source, _is_test_file(filepath))
 
 
 def chunk_repo(repo_path: str) -> list[dict]:
@@ -44,10 +50,3 @@ def chunk_repo(repo_path: str) -> list[dict]:
         except SyntaxError:
             continue
     return all_chunks
-
-
-from backend.embedding import retrieve
-
-results = retrieve("how does requests handle redirects?")
-for r in results:
-    print(f"{r['name']} ({r['file']}) - distance: {r['distance']:.4f}")
