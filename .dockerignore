@@ -1,0 +1,10 @@
+venv/
+frontend/node_modules/
+frontend/dist/
+.git/
+target_repos/*/.git/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+chunks_summary.txt

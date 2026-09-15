@@ -9,7 +9,7 @@ const EXAMPLE_QUESTIONS = [
   "How is the response encoding determined?",
 ];
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -65,8 +65,8 @@ function App() {
         </h1>
         <p>
           Answers are grounded in the indexed source of the{" "}
-          <code>requests</code> library, with citations to the exact
-          file and function they came from.
+          <code>requests</code> library, with citations to the exact file and
+          function they came from.
         </p>
       </header>
 
@@ -111,9 +111,7 @@ function App() {
         <section className="answer">
           <h2>Answer</h2>
           <div className="markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {answer}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
           </div>
 
           {sources.length > 0 && (

@@ -2,6 +2,8 @@
 
 An assistant that answers questions about a codebase (currently indexed: the `requests` library) by chunking code along function and class boundaries, embedding those chunks, and giving the model a tool to read a full file when retrieved context isn't sufficient. Built without LangChain or LlamaIndex, so every part of the retrieval and generation pipeline is implemented and understood directly rather than delegated to a framework.
 
+**Live demo:** https://codebase-assistant.fly.dev/ (the UI works directly in the browser; `/ask` itself is a POST-only endpoint, not something to visit directly).
+
 ## Motivation
 
 Standard RAG treats code as prose: fixed-size chunks and similarity-only retrieval. This breaks down on code in a couple of specific ways. A character-count chunk can split a function in half or merge unrelated methods together. And for a question like "how does this library handle redirects," similarity search frequently ranks test functions above the implementation, since test names and docstrings are written in plain English (e.g. `test_HTTP_302_ALLOW_REDIRECT_GET`) and match the question's wording more closely than the source code does.
@@ -89,6 +91,27 @@ curl -X POST http://127.0.0.1:8000/ask \
 ```
 
 Response shape: `{"answer": "...", "sources": [{"file": ..., "name": ...}, ...]}`.
+
+## Deployment
+
+The app ships as a single Docker image: FastAPI serves both the `/ask` API and the built React frontend from one origin (no CORS, no second service), with `chroma_db/` and `target_repos/requests/` baked directly into the image rather than rebuilt at runtime, since the index is static for this fixed repo. See `Dockerfile` and `.dockerignore`.
+
+Before deploying, `chroma_db/` and `target_repos/requests/` must already exist locally (Setup steps 1 and 4) — the image is built from whatever is on disk at deploy time.
+
+Deployed with [Fly.io](https://fly.io) (free tier), which can build the image on its own remote builder if Docker isn't installed locally:
+
+```bash
+fly launch --no-deploy   # first time only: registers the app, writes fly.toml
+fly secrets set OPENAI_API_KEY=sk-...
+fly deploy
+```
+
+To test the image locally first instead (requires Docker):
+
+```bash
+docker build -t codebase-assistant .
+docker run -p 8000:8000 --env-file .env codebase-assistant
+```
 
 ## Testing
 
