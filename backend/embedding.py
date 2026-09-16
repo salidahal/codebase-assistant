@@ -6,18 +6,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+def _client(api_key: str | None = None) -> OpenAI:
+    return OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY"))
 
 
-def get_embeddings(texts: list[str], model="text-embedding-3-small") -> list[list[float]]:
+def get_embeddings(texts: list[str], model="text-embedding-3-small", api_key: str | None = None) -> list[list[float]]:
     """Call OpenAI directly and return the raw embedding vectors."""
-    response = client.embeddings.create(input=texts, model=model)
+    response = _client(api_key).embeddings.create(input=texts, model=model)
+
     # response.data is a list of objects, one per input text, in the same order.
     # Each has an .embedding attribute - that's the actual vector.
     return [item.embedding for item in response.data]
 
 
-def embed_and_store(chunks: list[dict], collection_name="requests_repo", persist_directory="chroma_db"):
+def embed_and_store(chunks, collection_name="requests_repo", persist_directory="chroma_db", api_key=None):
     """Embed every chunk ourselves, then hand the finished vectors to Chroma."""
     chroma_client = chromadb.PersistentClient(path=persist_directory)
     collection = chroma_client.get_or_create_collection(name=collection_name)
@@ -44,7 +46,7 @@ def embed_and_store(chunks: list[dict], collection_name="requests_repo", persist
             "is_test": c["is_test"],
         } for c in batch]
 
-        vectors = get_embeddings(texts)   # <- this is the actual API call
+        vectors = get_embeddings(texts, api_key=api_key)   # <- this is the actual API call
 
         collection.add(
             ids=ids,
@@ -67,14 +69,14 @@ def _rows_from_query(results):
     ))
 
 
-def retrieve(query: str, top_k: int = 5, collection_name="requests_repo", persist_directory="chroma_db"):
+def retrieve(query: str, top_k: int = 5, collection_name="requests_repo", persist_directory="chroma_db", api_key=None):
     """Given a plain-English question, return the top_k most relevant chunks.
     Prefers implementation chunks; test chunks only fill remaining slots."""
     chroma_client = chromadb.PersistentClient(path=persist_directory)
     collection = chroma_client.get_or_create_collection(name=collection_name)
 
     # Embed the question the same way we embedded the chunks - same model, same function
-    query_vector = get_embeddings([query])[0]
+    query_vector = get_embeddings([query], api_key=api_key)[0]
 
     impl_results = collection.query(
         query_embeddings=[query_vector],
@@ -100,7 +102,7 @@ def retrieve(query: str, top_k: int = 5, collection_name="requests_repo", persis
     return [{**meta, "source": doc, "distance": dist} for _, doc, meta, dist in rows]
 
 
-def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
+def generate_answer(query, retrieved_chunks, api_key=None):
     """Build a prompt from retrieved chunks and ask the LLM to answer."""
 
     # Build one labeled block of context from all retrieved chunks
@@ -124,7 +126,7 @@ def generate_answer(query: str, retrieved_chunks: list[dict]) -> str:
 
     user_prompt = f"Relevant code:\n\n{context_text}\n\nQuestion: {query}"
 
-    response = client.chat.completions.create(
+    response = _client(api_key).chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -174,7 +176,7 @@ tools = [
 ]
 
 
-def generate_answer_with_tools(query: str, retrieved_chunks: list[dict]) -> str:
+def generate_answer_with_tools(query, retrieved_chunks, api_key=None):
     """Same as generate_answer, but lets the model call read_file if it needs to."""
 
     context_blocks = []
@@ -199,7 +201,7 @@ def generate_answer_with_tools(query: str, retrieved_chunks: list[dict]) -> str:
     ]
 
     for _ in range(3):
-        response = client.chat.completions.create(
+        response = _client(api_key).chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
             tools=tools,

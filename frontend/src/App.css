@@ -89,6 +89,27 @@ body {
   cursor: default;
 }
 
+.api-key {
+  background: #1a1e26;
+  border: 1px solid #262b35;
+  border-radius: 6px;
+  color: #e8e6e1;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  padding: 10px 14px;
+  width: 100%;
+}
+
+.api-key:focus {
+  outline: 2px solid #e8a33d;
+  outline-offset: 1px;
+}
+
+.api-key::placeholder {
+  font-family: "Inter", system-ui, sans-serif;
+  color: #5c6472;
+}
+
 textarea {
   background: #1a1e26;
   border: 1px solid #262b35;
@@ -296,6 +317,22 @@ button:disabled {
   color: #7c8494;
 }
 
+.source-link {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.source-link:hover .source-name {
+  border-color: #e8a33d;
+}
+
+.source-link:hover .source-file {
+  color: #a8afba;
+}
+
 .source-name {
   font-family: "JetBrains Mono", monospace;
   font-size: 13px;
@@ -305,6 +342,7 @@ button:disabled {
   border-radius: 4px;
   padding: 2px 7px;
   flex-shrink: 0;
+  transition: border-color 0.15s ease;
 }
 
 .source-file {

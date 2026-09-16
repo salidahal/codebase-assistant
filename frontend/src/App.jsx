@@ -17,6 +17,9 @@ function App() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [apiKey, setApiKey] = useState(
+    () => sessionStorage.getItem("openai_key") ?? "",
+  );
 
   async function askQuestion(question) {
     if (!question.trim() || loading) return;
@@ -28,12 +31,17 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/ask`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Api-Key": apiKey,
+        },
         body: JSON.stringify({ query: question }),
       });
 
       if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`);
+        const problem = await response.json().catch(() => null);
+        setError(problem?.detail ?? `Server responded with ${response.status}`);
+        return;
       }
 
       const data = await response.json();
@@ -49,6 +57,11 @@ function App() {
   function handleAsk(e) {
     e.preventDefault();
     askQuestion(query);
+  }
+
+  function handleKeyChange(e) {
+    setApiKey(e.target.value);
+    sessionStorage.setItem("openai_key", e.target.value);
   }
 
   function handleExampleClick(question) {
@@ -71,6 +84,13 @@ function App() {
       </header>
 
       <form className="ask-form" onSubmit={handleAsk}>
+        <input
+          type="password"
+          className="api-key"
+          value={apiKey}
+          onChange={handleKeyChange}
+          placeholder="sk-…  your OpenAI key, kept in this browser tab only"
+        />
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -120,8 +140,15 @@ function App() {
               <ul>
                 {sources.map((s, i) => (
                   <li key={i}>
-                    <code className="source-name">{s.name}</code>
-                    <span className="source-file">{s.file}</span>
+                    <a
+                      className="source-link"
+                      href={s.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <code className="source-name">{s.name}</code>
+                      <span className="source-file">{s.path}</span>
+                    </a>
                   </li>
                 ))}
               </ul>
