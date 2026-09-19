@@ -176,7 +176,7 @@ tools = [
 ]
 
 
-def generate_answer_with_tools(query, retrieved_chunks, api_key=None):
+def generate_answer_with_tools(query, retrieved_chunks, api_key=None, history=None):
     """Same as generate_answer, but lets the model call read_file if it needs to."""
 
     context_blocks = []
@@ -195,10 +195,10 @@ def generate_answer_with_tools(query, retrieved_chunks, api_key=None):
     )
     user_prompt = f"Relevant code:\n\n{context_text}\n\nQuestion: {query}"
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
+    messages.extend(history or [])
+    messages.append({"role": "user", "content": user_prompt})
+
 
     for _ in range(3):
         response = _client(api_key).chat.completions.create(

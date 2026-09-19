@@ -1,10 +1,11 @@
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from openai import AuthenticationError
 from backend.embedding import retrieve, generate_answer_with_tools
+from typing import Literal
 
 REPO_ID = "psf/requests"
 COMMIT_SHA = "dae7ef63b4df6eded86637f251fc4e3a06c3b479"
@@ -20,8 +21,15 @@ app.add_middleware(
 )
 
 
+class Message(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=50_000)
+
+
 class Question(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=2_000)
+    history: list[Message] = Field(default=[], max_length=40)
+
 
 
 @app.get("/health")
@@ -40,8 +48,12 @@ def ask(question: Question, x_openai_api_key: str | None = Header(default=None))
     try:
         chunks = retrieve(question.query, api_key=x_openai_api_key)
         answer = generate_answer_with_tools(
-            question.query, chunks, api_key=x_openai_api_key
+            question.query,
+            chunks,
+            api_key=x_openai_api_key,
+            history=[m.model_dump() for m in question.history],
         )
+
     except AuthenticationError:
         raise HTTPException(
             status_code=401,

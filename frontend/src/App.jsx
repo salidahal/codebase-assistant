@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./App.css";
@@ -11,10 +11,14 @@ const EXAMPLE_QUESTIONS = [
 
 const API_URL = import.meta.env.DEV ? "http://127.0.0.1:8000" : "";
 
+// Messages beyond this are still shown, but no longer sent to the model.
+// Must not exceed the backend's `history` cap in main.py.
+const HISTORY_LIMIT = 40;
+
 function App() {
   const [query, setQuery] = useState("");
-  const [answer, setAnswer] = useState(null);
-  const [sources, setSources] = useState([]);
+  const [messages, setMessages] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [apiKey, setApiKey] = useState(
@@ -24,9 +28,14 @@ function App() {
   async function askQuestion(question) {
     if (!question.trim() || loading) return;
 
+    const history = messages
+      .slice(-HISTORY_LIMIT)
+      .map(({ role, content }) => ({ role, content }));
+
+    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setQuery("");
     setLoading(true);
     setError(null);
-    setAnswer(null);
 
     try {
       const response = await fetch(`${API_URL}/ask`, {
@@ -35,7 +44,7 @@ function App() {
           "Content-Type": "application/json",
           "X-OpenAI-Api-Key": apiKey,
         },
-        body: JSON.stringify({ query: question }),
+        body: JSON.stringify({ query: question, history }),
       });
 
       if (!response.ok) {
@@ -45,8 +54,10 @@ function App() {
       }
 
       const data = await response.json();
-      setAnswer(data.answer);
-      setSources(data.sources);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.answer, sources: data.sources },
+      ]);
     } catch {
       setError("Could not reach the assistant. Is the backend running?");
     } finally {
@@ -83,41 +94,47 @@ function App() {
         </p>
       </header>
 
-      <form className="ask-form" onSubmit={handleAsk}>
-        <input
-          type="password"
-          className="api-key"
-          value={apiKey}
-          onChange={handleKeyChange}
-          placeholder="sk-…  your OpenAI key, kept in this browser tab only"
-        />
-        <textarea
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="How does requests handle redirects?"
-          rows={3}
-        />
-        <div className="ask-row">
-          <button type="submit" disabled={loading}>
-            {loading ? "Thinking…" : "Ask"}
-          </button>
-          <div className="examples">
-            {EXAMPLE_QUESTIONS.map((q) => (
-              <button
-                key={q}
-                type="button"
-                className="example-chip"
-                disabled={loading}
-                onClick={() => handleExampleClick(q)}
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </div>
-      </form>
+      {messages.map((m, i) => (
+        <Fragment key={i}>
+          {i > 0 && messages.length - i === HISTORY_LIMIT && (
+            <p className="memory-divider">
+              the assistant no longer remembers anything above this line
+            </p>
+          )}
+          {m.role === "user" ? (
+            <p className="turn-question">{m.content}</p>
+          ) : (
+            <section className="answer">
+              <div className="markdown">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {m.content}
+                </ReactMarkdown>
+              </div>
 
-      {error && <p className="error">{error}</p>}
+              {m.sources?.length > 0 && (
+                <div className="sources">
+                  <h3>Sources</h3>
+                  <ul>
+                    {m.sources.map((s, j) => (
+                      <li key={j}>
+                        <a
+                          className="source-link"
+                          href={s.github_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          <code className="source-name">{s.name}</code>
+                          <span className="source-file">{s.path}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+        </Fragment>
+      ))}
 
       {loading && (
         <div className="skeleton" aria-hidden="true">
@@ -127,35 +144,73 @@ function App() {
         </div>
       )}
 
-      {!loading && answer && (
-        <section className="answer">
-          <h2>Answer</h2>
-          <div className="markdown">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{answer}</ReactMarkdown>
-          </div>
+      {error && <p className="error">{error}</p>}
 
-          {sources.length > 0 && (
-            <div className="sources">
-              <h3>Sources</h3>
-              <ul>
-                {sources.map((s, i) => (
-                  <li key={i}>
-                    <a
-                      className="source-link"
-                      href={s.github_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <code className="source-name">{s.name}</code>
-                      <span className="source-file">{s.path}</span>
-                    </a>
-                  </li>
-                ))}
-              </ul>
+      <form className="ask-form" onSubmit={handleAsk}>
+        <input
+          type="password"
+          className="api-key"
+          value={apiKey}
+          onChange={handleKeyChange}
+          placeholder="sk-…  your OpenAI API key"
+        />
+        {apiKey ? (
+          <p className="api-key-note">
+            Kept in this tab only, and cleared when you close it.
+          </p>
+        ) : (
+          <p className="api-key-note">
+            Sent with each question and used only to answer it — never stored on
+            the server. Kept in this browser tab only, and cleared when you close
+            the tab. Closing the tab does not revoke the key, so use a key with a{" "}
+            <a
+              href="https://platform.openai.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              spending limit
+            </a>
+            .
+          </p>
+        )}
+        <textarea
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          maxLength={2000}
+          placeholder={
+            messages.length > 0
+              ? "Ask a follow-up…"
+              : "How does requests handle redirects?"
+          }
+          rows={3}
+        />
+        {messages.length > HISTORY_LIMIT && (
+          <p className="memory-note">
+            Only the last {HISTORY_LIMIT / 2} exchanges are remembered — older
+            ones stay on screen but are no longer sent with your question.
+          </p>
+        )}
+        <div className="ask-row">
+          <button type="submit" disabled={loading}>
+            {loading ? "Thinking…" : "Ask"}
+          </button>
+          {messages.length === 0 && (
+            <div className="examples">
+              {EXAMPLE_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="example-chip"
+                  disabled={loading}
+                  onClick={() => handleExampleClick(q)}
+                >
+                  {q}
+                </button>
+              ))}
             </div>
           )}
-        </section>
-      )}
+        </div>
+      </form>
     </div>
   );
 }
