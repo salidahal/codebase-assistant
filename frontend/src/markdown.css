@@ -1,0 +1,95 @@
+/* LLM-generated markdown output */
+.markdown {
+  line-height: 1.65;
+  font-size: 15px;
+  color: #e8e6e1;
+}
+
+.markdown > *:first-child {
+  margin-top: 0;
+}
+
+.markdown p {
+  margin: 0 0 14px;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.markdown li {
+  margin-bottom: 6px;
+}
+
+.markdown li::marker {
+  color: #e8a33d;
+}
+
+.markdown strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.markdown a {
+  color: #e8a33d;
+  text-decoration: none;
+}
+
+.markdown a:hover {
+  text-decoration: underline;
+}
+
+.markdown blockquote {
+  margin: 0 0 14px;
+  padding: 2px 16px;
+  border-left: 2px solid #e8a33d;
+  color: #a8afba;
+}
+
+.markdown code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 13.5px;
+  background: #1a1e26;
+  border: 1px solid #262b35;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #e8a33d;
+}
+
+.markdown pre {
+  background: #1a1e26;
+  border: 1px solid #262b35;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0 0 16px;
+}
+
+.markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e8e6e1;
+}
+
+.markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid #262b35;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.markdown th {
+  color: #a8afba;
+  font-weight: 500;
+}
+

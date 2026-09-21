@@ -1,9 +1,44 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import "tailwindcss";
+
+/* The existing palette, exposed to Tailwind as utilities: bg-ink, text-accent, etc. */
+@theme {
+  --color-ink: #13161c;
+  --color-surface: #1a1e26;
+  --color-line: #262b35;
+  --color-line-soft: #1c202a;
+  --color-accent: #e8a33d;
+  --color-danger: #e8674d;
+  --color-text: #e8e6e1;
+  --color-muted: #a8afba;
+  --color-dim: #7c8494;
+  --color-faint: #5c6472;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
 }
 
 body {
   min-height: 100vh;
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* Animated gradient sweep - needs a keyframe, so it stays plain CSS. */
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #1a1e26 25%, #202531 37%, #1a1e26 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
 }
